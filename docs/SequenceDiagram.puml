@@ -1,0 +1,906 @@
+@startuml SequenceDiagram_RegisterFlow
+title Sequence Diagram - Đăng ký & Placement Test
+
+actor Guest
+participant "Frontend" as FE
+participant "AuthController" as AC
+participant "AuthService" as AS
+participant "UserRepository" as UR
+participant "PasswordEncoder" as PE
+participant "PlacementTestController" as PTC
+participant "PlacementTestService" as PTS
+participant "GroqService" as GS
+database "MySQL DB" as DB
+
+Guest -> FE: 1. Mở trang đăng ký
+
+Guest -> FE: 2. Điền form:
+activate FE
+note over FE: username, email, password,\nfullName, ageGroup
+
+FE -> AC: 3. POST /api/auth/register
+activate AC
+
+AC -> AS: 4. register(registerRequest)
+activate AS
+
+AS -> UR: 5. existsByUsername(username)
+activate UR
+UR -> DB: SELECT count FROM users
+DB --> UR: 0 (chưa tồn tại)
+UR --> AS: false 
+deactivate UR
+
+AS -> UR: 6. existsByEmail(email)
+activate UR
+UR -> DB: SELECT count FROM users
+DB --> UR: 0 (chưa tồn tại)
+UR --> AS: false 
+deactivate UR
+
+AS -> PE: 7. encode(password)
+activate PE
+PE --> AS: (hashed)
+deactivate PE
+
+AS -> UR: 8. save(newUser)
+activate UR
+UR -> DB: INSERT INTO users
+DB --> UR: User (id=101, role=STUDENT, level=A1)
+UR --> AS: User entity
+deactivate UR
+
+AS --> AC: 9. AuthResponse {id, username, message}
+deactivate AS
+
+AC --> FE: 10. 200 OK + AuthResponse
+deactivate AC
+
+FE --> Guest: 11.  Đăng ký thành công\n Chuyển sang Placement Test
+deactivate FE
+
+note over Guest: PLACEMENT TEST
+
+FE -> PTC: 12. GET /api/placement-test
+activate PTC
+
+PTC -> PTS: 13. getPlacementTest()
+activate PTS
+
+PTS -> DB: 14. SELECT * FROM placement_tests
+DB --> PTS: PlacementTest (10 questions)
+PTS --> PTC: PlacementTest
+deactivate PTS
+
+PTC --> FE: 15. 200 OK + Questions
+deactivate PTC
+
+FE --> Guest: 16. Hien thi 10 cau test
+
+Guest -> FE: 17. Làm bài test (user trả lời 10 câu)
+
+FE -> PTC: 18. POST /api/placement-test/submit
+activate PTC
+note over FE: answers: [Q1-A, Q2-B, ...]
+
+PTC -> PTS: 19. evaluateTest(answers)
+activate PTS
+
+PTS -> DB: 20. Tính toán điểm dựa trên:
+note over PTS: - correctAnswer matching\n- Skill distribution\n- Level determination
+
+DB --> PTS: level = B1 (ví dụ: 75%)
+PTS --> PTC: TestResult {level: B1, score: 75}
+deactivate PTS
+
+PTC -> UR: 21. updateUserLevel(userId, B1)
+activate UR
+UR -> DB: UPDATE users SET level='B1',\nplacementTestCompleted=true
+DB --> UR: success
+UR --> PTC: updated
+deactivate UR
+
+PTC --> FE: 22. 200 OK + TestResult {level: B1}
+deactivate PTC
+
+FE --> Guest: 23.  Kết quả: Level B1\n Gợi ý khóa học:
+note over FE: - English for Beginners (B1)\n- Business English (B1)
+
+@enduml
+
+' ============================================================
+
+@startuml SequenceDiagram_ExerciseSubmission
+title Sequence Diagram - Làm bài tập & Chấm điểm AI
+
+actor Student
+participant "Frontend" as FE
+participant "ExercisesController" as EC
+participant "ExerciseService" as ES
+participant "ExerciseRepository" as ER
+participant "GroqService" as GS
+participant "UserStatsService" as USS
+participant "GamificationService" as GS_gami
+database "MySQL DB" as DB
+participant "Groq API" as GROQ
+
+Student -> FE: 1. Mở Exercise
+FE -> EC: 2. GET /api/exercises/{id}
+activate EC
+EC -> ER: 3. getExerciseById(id)
+activate ER
+ER -> DB: SELECT * FROM exercises WHERE id=123
+DB --> ER: Exercise
+ER --> EC: Exercise
+deactivate ER
+EC --> FE: 4. 200 OK + Exercise data
+deactivate EC
+
+FE --> Student: 5. Hien thi bai tap:
+note over FE: Title: "Write about your vacation"\nType: WRITING, Skill: WRITING
+
+Student -> FE: 6. Viet cau tra loi
+
+FE -> EC: 7. POST /api/exercises/{id}/submit
+activate EC
+note over FE: {userAnswer: "I went to..."}
+
+EC -> ES: 8. submitExercise(userId, exerciseId, userAnswer)
+activate ES
+
+ES -> ER: 9. getExerciseById(exerciseId)
+activate ER
+ER --> ES: Exercise
+deactivate ER
+
+ES -> GS: 10. scoreExercise(exercise, userAnswer)
+activate GS
+
+GS -> GROQ: 11. POST /api/groq/completions
+note over GS: prompt = rubric:\n"Score this WRITING exercise\n(Grammar, Vocabulary, Coherence)\nAnswer: <userAnswer>"
+
+activate GROQ
+note over GROQ: ⏳ Processing with LLaMA 3...
+
+GROQ --> GS: 12. {score: 85, feedback: "Good...", suggestions: "Try..."}
+deactivate GROQ
+
+GS --> ES: 13. ScoreResponse
+deactivate GS
+
+ES -> ER: 14. save(ExerciseResult {
+activate ER
+note over ER: user_id, exercise_id,\nscore=85, feedback,\nsuggestions, skill_type=WRITING
+ER -> DB: INSERT INTO exercise_results
+DB --> ER: ExerciseResult saved
+ER --> ES: ExerciseResult
+deactivate ER
+
+ES -> USS: 15. updateUserStats(userId, result)
+activate USS
+note over USS: - writingScore = (85 + prev) / 2\n- exercisesCompleted++
+
+USS -> DB: UPDATE user_stats SET...
+DB --> USS: success
+USS --> ES: updated
+deactivate USS
+
+ES -> GS_gami: 16. checkBadges(userId)
+activate GS_gami
+note over GS_gami: - perfectScore100? → MASTERY badge?\n- exercises10? → PROGRESS badge?
+
+GS_gami -> DB: SELECT COUNT(*) FROM\nexercise_results WHERE score=100
+DB --> GS_gami: 0 (no badge yet)
+GS_gami --> ES: []
+deactivate GS_gami
+
+ES --> EC: 17. ExerciseResultResponse
+deactivate ES
+
+EC --> FE: 18. 200 OK + Result
+deactivate EC
+
+FE --> Student: 19. Ket qua:
+note over FE: Score: 85/100\n Feedback: "Good vocabulary usage...\n Suggestions: Try using..."
+
+Student -> FE: 20. Xem kết quả chi tiết
+
+@enduml
+
+' ============================================================
+
+@startuml SequenceDiagram_DailyChallenge
+title Sequence Diagram - Thử thách hàng ngày & Gamification
+
+actor Student
+participant "Frontend" as FE
+participant "DailyChallengeController" as DCC
+participant "DailyChallengeService" as DCS
+participant "GamificationService" as GS
+participant "UserStatsRepository" as USR
+database "MySQL DB" as DB
+participant "NotificationService" as NS
+
+Student -> FE: 1. Mở Dashboard
+FE -> DCC: 2. GET /api/daily-challenges/today
+activate DCC
+
+DCC -> DCS: 3. getTodayChallenge()
+activate DCS
+
+DCS -> DB: 4. SELECT * FROM daily_challenges\nWHERE challenge_date = TODAY()
+DB --> DCS: DailyChallenge {
+note over DB: id=50, type=VOCAB_QUIZ,\ntitle="Learn 5 new words",\nxpReward=20, targetGoal=5
+DCS --> DCC: DailyChallenge
+deactivate DCS
+
+DCC --> FE: 5. 200 OK + Challenge
+deactivate DCC
+
+FE --> Student: 6. Thu thach hom nay:
+note over FE: "Vocab Quiz: Learn 5 new words\nReward: 20 XP"
+
+Student -> FE: 7. Bắt đầu làm challenge
+FE -> DCC: 8. POST /api/daily-challenges/{id}/progress
+activate DCC
+
+DCC -> DCS: 9. updateProgress(userId, challengeId)
+activate DCS
+
+DCS -> DB: 10. UPDATE user_daily_progress
+note over DB: currentProgress++, total=1
+
+DB --> DCS: success
+DCS --> DCC: success
+deactivate DCS
+
+DCC --> FE: 11. 200 OK
+deactivate DCC
+
+FE --> Student: 12. Progress: 1/5
+
+Student -> FE: 13. Tiếp tục làm (4 lần nữa)
+FE -> DCC: 14. POST /api/daily-challenges/{id}/progress (x4)
+activate DCC
+DCC -> DCS: updateProgress (x4)
+activate DCS
+DCS -> DB: UPDATE currentProgress (x4)
+note over DB: currentProgress = 5\nCompleted!
+DB --> DCS: success
+DCS --> DCC: success
+deactivate DCS
+DCC --> FE: completed
+deactivate DCC
+
+FE --> Student: 15.  Challenge Completed!\n Click to Claim XP
+
+Student -> FE: 16. Nhấn "Claim"
+FE -> DCC: 17. POST /api/daily-challenges/{id}/claim
+activate DCC
+
+DCC -> DCS: 18. claimReward(userId, challengeId)
+activate DCS
+
+DCS -> DB: 19. UPDATE user_daily_progress\nSET claimed=true, xp_earned=20
+DB --> DCS: success
+
+DCS -> GS: 20. addXp(userId, 20)
+activate GS
+
+GS -> USR: 21. updateUserXp(userId, +20)
+activate USR
+USR -> DB: SELECT total_xp FROM user_stats
+DB --> USR: 180 (hiện tại)
+USR -> DB: UPDATE total_xp = 200
+DB --> USR: success
+USR --> GS: {totalXp: 200, levelUp: false}
+deactivate USR
+
+GS -> DB: 22. UPDATE user_streaks
+note over DB: currentStreak++, lastActivityDate=TODAY()
+
+DB --> GS: success
+
+GS -> DB: 23. SELECT currentStreak FROM user_streaks
+DB --> GS: 7 (7 day streak achieved)
+
+GS -> DB: 24. Check badges:
+note over DB: INSERT INTO user_badges\n(user_id, badge_id=STREAK_7DAY, earnedAt=NOW())
+
+DB --> GS: Badge awarded!
+GS --> DCS: {xpEarned: 20, badges: [STREAK_7DAY]}
+deactivate GS
+
+DCS -> NS: 25. createNotification(userId, BADGE_EARNED)
+activate NS
+NS -> DB: INSERT INTO notifications
+note over DB: type=BADGE_EARNED,\nmessage="You earned 7-Day Streak badge!"
+DB --> NS: success
+NS --> DCS: notification sent
+deactivate NS
+
+DCS --> DCC: 26. RewardResponse {xp: 20, badges: [STREAK_7DAY]}
+deactivate DCS
+
+DCC --> FE: 27. 200 OK
+deactivate DCC
+
+FE --> Student: 28.  +20 XP\n Badge Earned: 7-Day Streak!
+note over FE: Show notification popup
+
+@enduml
+
+' ============================================================
+
+@startuml SequenceDiagram_EnrollCourse
+title Sequence Diagram - Đăng ký khóa học
+
+actor Student
+participant "Frontend" as FE
+participant "CourseController" as CC
+participant "CourseService" as CS
+participant "CourseRepository" as CR
+participant "EnrollmentRepository" as EnR
+participant "LessonProgressRepository" as LPR
+database "MySQL DB" as DB
+
+Student -> FE: 1. Xem danh sách khóa học
+
+FE -> CC: 2. GET /api/courses?level=B1
+activate CC
+
+CC -> CR: 3. findByLevel(B1)
+activate CR
+CR -> DB: SELECT * FROM courses WHERE level='B1'
+DB --> CR: [Course 1, Course 2, Course 3]
+CR --> CC: courses
+deactivate CR
+
+CC --> FE: 4. 200 OK + courses
+deactivate CC
+
+FE --> Student: 5. Hiển thị danh sách khóa học
+
+Student -> FE: 6. Chọn khóa học
+FE -> CC: 7. GET /api/courses/{id}
+activate CC
+
+CC -> CR: 8. getById(id)
+CR -> DB: SELECT * FROM courses WHERE id=5
+DB --> CR: Course (with chapters/lessons count)
+CR --> CC: course
+deactivate CR
+
+CC --> FE: 9. 200 OK + course details
+deactivate CC
+
+FE --> Student: 10. Course detail page:
+note over FE: - Title, Description\n- 8 chapters, 32 lessons\n- Rating: 4.8/5\n- Button: ENROLL
+
+Student -> FE: 11. Nhấn "Enroll"
+
+FE -> CC: 12. POST /api/courses/{id}/enroll
+activate CC
+
+CC -> CS: 13. enrollCourse(userId, courseId)
+activate CS
+
+CS -> EnR: 14. existsByUserIdAndCourseId(userId, courseId)
+activate EnR
+EnR -> DB: SELECT COUNT(*) FROM course_enrollments
+DB --> EnR: 0 (chưa đăng ký)
+EnR --> CS: false 
+deactivate EnR
+
+CS -> EnR: 15. save(new CourseEnrollment)
+activate EnR
+EnR -> DB: INSERT INTO course_enrollments
+DB --> EnR: enrollment saved
+EnR --> CS: CourseEnrollment
+deactivate EnR
+
+CS -> CR: 16. getById(courseId)
+CR -> DB: SELECT * FROM courses WHERE id=5
+DB --> CR: course (32 lessons)
+CR --> CS: course
+deactivate CR
+
+CS -> DB: 17. SELECT id FROM lessons WHERE course_id=5
+DB --> CS: [lesson1_id, lesson2_id, ..., lesson32_id]
+
+CS -> LPR: 18. saveAll(List<LessonProgress>)
+activate LPR
+note over LPR: Tạo 32 LessonProgress entries\nđều có completed=false
+LPR -> DB: INSERT INTO lesson_progress\n(user_id, lesson_id, completed=false...)\nVALUES x32
+DB --> LPR: 32 rows inserted
+LPR --> CS: success
+deactivate LPR
+
+CS -> CR: 19. incrementEnrolledCount(courseId)
+activate CR
+CR -> DB: UPDATE courses SET enrolled_count=enrolled_count+1
+DB --> CR: success
+CR --> CS: success
+deactivate CR
+
+CS --> CC: 20. EnrollmentResponse
+deactivate CS
+
+CC --> FE: 21. 200 OK + EnrollmentResponse
+deactivate CC
+
+FE --> Student: 22. Successfully enrolled!
+note over FE:  Redirect to course\nShow first lesson: LESSON 1
+
+@enduml
+
+' ============================================================
+
+@startuml SequenceDiagram_VocabularySR
+title Sequence Diagram - Học từ vựng (Spaced Repetition)
+
+actor Student
+participant "Frontend" as FE
+participant "VocabController" as VC
+participant "VocabService" as VS
+participant "VocabProgressRepository" as VPR
+database "MySQL DB" as DB
+
+Student -> FE: 1. Mở Vocabulary module
+
+FE -> VC: 2. GET /api/vocabulary/words-to-review
+activate VC
+
+VC -> VS: 3. getWordsToReview(userId)
+activate VS
+
+VS -> DB: 4. SELECT * FROM user_vocabulary_progress
+note over DB: WHERE next_review_date <= TODAY()\nORDER BY next_review_date DESC
+
+DB --> VS: [word1, word2, word3] (cần ôn ngày hôm nay)
+VS --> VC: words
+deactivate VS
+
+VC --> FE: 5. 200 OK + words
+deactivate VC
+
+FE --> Student: 6. Words to review today:
+note over FE: Show 3 từ cần ôn
+
+Student -> FE: 7. Chọn từ 1: "book"
+FE --> Student: 8. Thong tin tu:
+note over FE: - Pronunciation: /bʊk/\n- Definition: A written work\n- Example: I read a book\n- Audio button, Image
+
+Student -> FE: 9. Trả lời: "một quyển sách, một cuốn sách"
+FE -> VC: 10. POST /api/vocabulary/review
+activate VC
+note over FE: {wordId: 123, userId: 101,\nanswer: "quyển sách", correct: true}
+
+VC -> VS: 11. reviewWord(userId, wordId, correct=true)
+activate VS
+
+VS -> VPR: 12. getProgress(userId, wordId)
+activate VPR
+VPR -> DB: SELECT * FROM user_vocabulary_progress
+DB --> VPR: progress {masteryLevel: 2, reviewCount: 5,\ncorrectCount: 4, easeFactor: 2.5}
+VPR --> VS: progress
+deactivate VPR
+
+VS -> DB: 13. Calculate SM-2 algorithm:
+note over VS: If correct=true:\n- new_easeFactor = 2.5 + (5-3*(1-1)) = 2.5\n- interval = masteryLevel + 1 = 3 days\n- nextReviewDate = TODAY() + 3 days
+
+VS -> VPR: 14. updateProgress(userId, wordId)
+activate VPR
+VPR -> DB: UPDATE user_vocabulary_progress
+note over DB: SET reviewCount=6,\ncorrectCount=5,\nmasteryLevel=3,\nnext_review_date='2026-05-06'
+
+DB --> VPR: success
+VPR --> VS: updated
+deactivate VPR
+
+VS -> DB: 15. UPDATE user_stats
+note over DB: vocabulary_score = (prev + accuracy) / 2
+
+DB --> VS: success
+
+VS --> VC: 16. ReviewResponse {correct: true,\nmasteryLevel: 3}
+deactivate VS
+
+VC --> FE: 17. 200 OK
+deactivate VC
+
+FE --> Student: 18. Correct!\nMastery Level: 3/5
+note over FE: Next review: 3 days
+
+Student -> FE: 19. Continue reviewing more words...
+
+@enduml
+
+deactivate AS
+
+AC --> Student : 200 OK\n{token, id, username, ...}
+deactivate AC
+
+@enduml
+
+' ============================================================
+
+@startuml SequenceDiagram_PlacementTest
+
+title Sequence Diagram - Làm bài kiểm tra phân loại
+
+actor Student
+participant "PlacementTestController" as PTC
+participant "AuthService" as AS
+participant "UserRepository" as UR
+database "Database" as DB
+
+== Lấy đề kiểm tra ==
+
+Student -> PTC : GET /api/placement-test
+activate PTC
+PTC --> Student : 200 OK\n{questions: [...10 câu A1-C1], total: 10}
+deactivate PTC
+
+== Nộp bài kiểm tra ==
+
+Student -> PTC : POST /api/placement-test/submit\n{correctAnswers, totalQuestions, recommendedLevel}
+activate PTC
+
+PTC -> AS : completePlacementTest(username, submit)
+activate AS
+
+AS -> UR : findByUsername(username)
+activate UR
+UR -> DB : SELECT * FROM users
+DB --> UR : User
+UR --> AS : User
+deactivate UR
+
+alt recommendedLevel hợp lệ
+    AS -> AS : level = valueOf(recommendedLevel)
+else recommendedLevel không hợp lệ
+    AS -> AS : inferLevel(correctAnswers, totalQuestions)
+    note right : ≥85%→C1, ≥70%→B2, ≥55%→B1, ≥40%→A2, <40%→A1
+end
+
+AS -> AS : user.setLevel(level)\nuser.setPlacementTestCompleted(true)
+
+AS -> UR : save(user)
+activate UR
+UR -> DB : UPDATE users SET level, placement_test_completed
+DB --> UR : updated
+UR --> AS : User
+deactivate UR
+
+AS --> PTC : AuthResponse (with updated level)
+deactivate AS
+
+PTC --> Student : 200 OK\n{id, username, level, placementTestCompleted: true, ...}
+deactivate PTC
+
+@enduml
+
+' ============================================================
+
+@startuml SequenceDiagram_AIScoring
+
+title Sequence Diagram - Chấm điểm bài làm (AI Scoring)
+
+actor Student
+participant "AgentController" as AGC
+participant "AgentService" as AGS
+participant "GroqService" as GS
+participant "ExerciseResultService" as ERS
+participant "UserRepository" as UR
+participant "ExerciseResultRepository" as ERR
+database "Database" as DB
+participant "Groq API" as GROQ
+
+Student -> AGC : POST /api/agent/score\n{skillType, userText, question, correctAnswer}
+activate AGC
+
+AGC -> AGS : scoreAnswer(request)
+activate AGS
+
+AGS -> GS : isAvailable()
+activate GS
+GS --> AGS : true/false
+deactivate GS
+
+alt Groq API Available
+    AGS -> GS : complete(systemPrompt, userMessage)
+    activate GS
+    GS -> GROQ : POST /openai/v1/chat/completions\n{model, messages, temperature}
+    activate GROQ
+    GROQ --> GS : {choices: [{message: {content: JSON}}]}
+    deactivate GROQ
+    GS --> AGS : raw JSON string
+    deactivate GS
+    AGS -> AGS : Parse JSON → score, criteria, feedback, improvement
+else Groq API Unavailable / Error
+    AGS -> AGS : scoreRuleBased(request)
+    note right
+        WRITING: Grammar + Vocab + Coherence + TaskResponse
+        SPEAKING: Fluency + Pronunciation + Grammar + Vocab
+        READING/LISTENING: compare answers
+    end note
+end
+
+AGS --> AGC : ScoringResponse
+deactivate AGS
+
+AGC -> UR : findByUsername(authentication.getName())
+activate UR
+UR --> AGC : User
+deactivate UR
+
+AGC -> ERS : save(userId, skillType, userAnswer, score, feedback, suggestions)
+activate ERS
+ERS -> UR : findById(userId)
+activate UR
+UR --> ERS : User
+deactivate UR
+ERS -> ERR : save(exerciseResult)
+activate ERR
+ERR -> DB : INSERT INTO exercise_results
+DB --> ERR : saved
+ERR --> ERS : ExerciseResult
+deactivate ERR
+ERS -> UR : save(user) [totalPoints += score*10]
+activate UR
+UR -> DB : UPDATE users SET total_points
+DB --> UR : updated
+UR --> ERS
+deactivate UR
+ERS --> AGC : ExerciseResult
+deactivate ERS
+
+AGC --> Student : 200 OK\n{type: "scoring", content: {score, criteria, feedback, improvement}}
+deactivate AGC
+
+@enduml
+
+' ============================================================
+
+@startuml SequenceDiagram_ExerciseGeneration
+
+title Sequence Diagram - Sinh bài tập AI
+
+actor Student
+participant "AgentController" as AGC
+participant "AgentService" as AGS
+participant "GroqService" as GS
+participant "Groq API" as GROQ
+
+Student -> AGC : POST /api/agent/generate\n{topic, level, skill, count}
+activate AGC
+
+AGC -> AGS : generateExercises(request)
+activate AGS
+
+AGS -> GS : isAvailable()
+activate GS
+GS --> AGS : true/false
+deactivate GS
+
+alt Groq Available
+    AGS -> GS : complete(systemPrompt, userMessage)
+    activate GS
+    GS -> GROQ : POST /openai/v1/chat/completions
+    activate GROQ
+    GROQ --> GS : JSON array of questions
+    deactivate GROQ
+    GS --> AGS : raw JSON string
+    deactivate GS
+    AGS -> AGS : Parse → List<QuestionItem>
+else Groq Unavailable
+    AGS -> AGS : buildQuestionsRuleBased(request)
+    note right
+        GRAMMAR/VOCABULARY: từ question pool
+        READING/LISTENING: template questions
+        WRITING/SPEAKING: open-ended prompts
+    end note
+end
+
+AGS --> AGC : ExerciseGenerationResponse
+deactivate AGS
+
+AGC --> Student : 200 OK\n{type: "exercise", content: {topic, level, skill, questions: [...]}}
+deactivate AGC
+
+@enduml
+
+' ============================================================
+
+@startuml SequenceDiagram_Chat
+
+title Sequence Diagram - Chat với AI Tutor
+
+actor Student
+participant "AgentController" as AGC
+participant "AgentService" as AGS
+participant "GroqService" as GS
+participant "Groq API" as GROQ
+
+Student -> AGC : POST /api/agent/chat\n{message, sessionType}
+activate AGC
+
+AGC -> AGS : chat(request)
+activate AGS
+
+AGS -> GS : isAvailable()
+activate GS
+GS --> AGS : true/false
+deactivate GS
+
+alt Groq Available
+    AGS -> GS : complete(systemPrompt, message)
+    activate GS
+    GS -> GROQ : POST /openai/v1/chat/completions
+    activate GROQ
+    GROQ --> GS : {message, examples, tip}
+    deactivate GROQ
+    GS --> AGS : raw JSON
+    deactivate GS
+    AGS -> AGS : Parse → ChatContent
+else Groq Unavailable
+    AGS -> AGS : chatRuleBased(request)
+    note right
+        Keyword matching:
+        "present simple" → grammar lesson
+        "vocabulary" → learning tips
+        "ielts/toeic" → exam guidance
+        default → greeting
+    end note
+end
+
+AGS --> AGC : ChatResponse
+deactivate AGS
+
+AGC --> Student : 200 OK\n{type: "chatbot", content: {message, examples, tip}}
+deactivate AGC
+
+@enduml
+
+' ============================================================
+
+@startuml SequenceDiagram_Guidance
+
+title Sequence Diagram - Nhận hướng dẫn học tập (Guidance)
+
+actor Student
+participant "AgentController" as AGC
+participant "AgentService" as AGS
+participant "UserRepository" as UR
+participant "ExerciseResultRepository" as ERR
+database "Database" as DB
+
+Student -> AGC : GET /api/agent/guidance
+activate AGC
+
+AGC -> UR : findByUsername(username)
+activate UR
+UR -> DB : SELECT * FROM users
+DB --> UR : User
+UR --> AGC : User
+deactivate UR
+
+AGC -> AGS : getGuidance(userId)
+activate AGS
+
+loop for each SkillType (WRITING, SPEAKING, READING, LISTENING)
+    AGS -> ERR : findAverageScoreByUserIdAndSkill(userId, skill)
+    activate ERR
+    ERR -> DB : SELECT AVG(score) FROM exercise_results
+    DB --> ERR : avgScore
+    ERR --> AGS : Double
+    deactivate ERR
+    AGS -> AGS : Tính skillScores, xác định weaknesses
+end
+
+AGS -> AGS : Sinh recommendations dựa trên weaknesses
+AGS -> AGS : Xác định nextLesson
+
+AGS --> AGC : GuidanceResponse\n{summary, weaknesses, recommendations, nextLesson, skillScores}
+deactivate AGS
+
+AGC --> Student : 200 OK\n{type: "guidance", content: {...}}
+deactivate AGC
+
+@enduml
+
+' ============================================================
+
+@startuml SequenceDiagram_JWTAuth
+
+title Sequence Diagram - JWT Authentication Filter
+
+actor Client
+participant "AuthTokenFilter" as ATF
+participant "JwtUtils" as JWT
+participant "UserDetailsServiceImpl" as UDS
+participant "SecurityContextHolder" as SCH
+participant "Controller" as CTRL
+
+Client -> ATF : HTTP Request with\nAuthorization: Bearer <token>
+activate ATF
+
+ATF -> ATF : parseJwt(request)\nextract token from header
+
+alt Token exists
+    ATF -> JWT : validateJwtToken(token)
+    activate JWT
+    JWT --> ATF : true/false
+    deactivate JWT
+
+    alt Token valid
+        ATF -> JWT : getUsernameFromJwtToken(token)
+        activate JWT
+        JWT --> ATF : username
+        deactivate JWT
+
+        ATF -> UDS : loadUserByUsername(username)
+        activate UDS
+        UDS --> ATF : UserDetails (with ROLE_xxx)
+        deactivate UDS
+
+        ATF -> SCH : setAuthentication(token)
+        activate SCH
+        SCH --> ATF
+        deactivate SCH
+    end
+end
+
+ATF -> CTRL : filterChain.doFilter(request, response)
+activate CTRL
+CTRL --> Client : HTTP Response
+deactivate CTRL
+deactivate ATF
+
+@enduml
+
+' ============================================================
+
+@startuml SequenceDiagram_Analytics
+
+title Sequence Diagram - Xem phân tích học tập
+
+actor Student
+participant "AnalyticsController" as ANC
+participant "UserRepository" as UR
+participant "ExerciseResultRepository" as ERR
+database "Database" as DB
+
+Student -> ANC : GET /api/analytics
+activate ANC
+
+ANC -> UR : findByUsername(username)
+activate UR
+UR --> ANC : User
+deactivate UR
+
+ANC -> ERR : findByUserIdOrderByCompletedAtDesc(userId)
+activate ERR
+ERR -> DB : SELECT * FROM exercise_results ORDER BY completed_at DESC
+DB --> ERR : List<ExerciseResult>
+ERR --> ANC : results
+deactivate ERR
+
+loop for each SkillType
+    ANC -> ERR : findAverageScoreByUserIdAndSkill(userId, skill)
+    activate ERR
+    ERR --> ANC : avgScore
+    deactivate ERR
+end
+
+ANC -> ANC : Tính scoreTrend (last 10 results)
+ANC -> ANC : Xác định weakSkills (avg < 6.0)
+ANC -> ANC : Xác định strongSkills (avg ≥ 7.5)
+ANC -> ANC : Tính activeDays, overallAverage
+ANC -> ANC : Sinh recommendations
+
+ANC --> Student : 200 OK\n{totalExercises, activeDays, overallAverage,\nskillAverages, scoreTrend, weakSkills,\nstrongSkills, recommendations}
+deactivate ANC
+
+@enduml

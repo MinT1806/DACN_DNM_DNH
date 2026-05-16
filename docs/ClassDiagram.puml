@@ -1,0 +1,720 @@
+@startuml ClassDiagram_ABCEnglish
+
+skinparam classAttributeIconSize 0
+skinparam linetype ortho
+skinparam packageStyle rectangle
+skinparam shadowing false
+
+title Class Diagram - ABC English Learning System
+
+' ==================== ENUMS ====================
+package "Enums" #F5E6E8 {
+    enum UserRole {
+        STUDENT
+        TEACHER
+        ADMIN
+        MENTOR
+    }
+
+    enum UserLevel {
+        A1, A2, B1, B2, C1, C2
+    }
+
+    enum ExerciseType {
+        MULTIPLE_CHOICE
+        FILL_IN_BLANK
+        WRITING
+        SPEAKING
+        READING
+        LISTENING
+    }
+
+    enum SkillType {
+        WRITING
+        SPEAKING
+        READING
+        LISTENING
+        GRAMMAR
+        VOCABULARY
+    }
+
+    enum ChallengeType {
+        VOCAB_QUIZ
+        LISTENING
+        SPEAKING_SHADOWING
+        GRAMMAR_SPRINT
+        READING_SPEED
+        MIXED
+    }
+
+    enum LessonType {
+        VIDEO
+        AUDIO
+        READING
+        EXERCISE
+        QUIZ
+    }
+
+    enum BadgeType {
+        STREAK
+        MASTERY
+        COURSE
+        SOCIAL
+        SPECIAL
+    }
+
+    enum ForumCategory {
+        GRAMMAR
+        VOCABULARY
+        SPEAKING
+        LISTENING
+        READING
+        WRITING
+        IELTS
+        TOEIC
+        GENERAL
+    }
+
+    enum MessageRole {
+        USER
+        ASSISTANT
+    }
+
+    enum MessageType {
+        SCORING
+        EXERCISE
+        CHATBOT
+        GUIDANCE
+    }
+
+    enum NotificationType {
+        STUDY_REMINDER
+        MENTOR_MESSAGE
+        BADGE_EARNED
+        LEVEL_UP
+        COURSE_ENROLLMENT
+        FORUM_REPLY
+        ASSIGNMENT_DUE
+        SYSTEM
+    }
+}
+
+' ==================== CORE ENTITIES ====================
+package "Core Entities" #E8F5E9 {
+
+    class User {
+        - id: Long
+        - username: String <<unique>>
+        - email: String <<unique>>
+        - password: String
+        - fullName: String
+        - avatar: String
+        - ageGroup: String
+        - role: UserRole
+        - level: UserLevel
+        - totalPoints: int
+        - placementTestCompleted: boolean
+        - createdAt: LocalDateTime
+        ---
+        + register(dto): User
+        + updateProfile(dto): void
+        + changePassword(old, new): void
+    }
+
+    class UserStats {
+        - id: Long <<1:1>>
+        - totalXp: int
+        - level: UserLevel
+        - currentStreak: int
+        - coursesEnrolled: int
+        - coursesCompleted: int
+        - lessonsCompleted: int
+        - exercisesCompleted: int
+        - vocabularyLearned: int
+        - speakingSessions: int
+        - writingSubmissions: int
+        - forumPosts: int
+        - totalStudyMinutes: int
+        - grammarScore: double
+        - vocabularyScore: double
+        - speakingScore: double
+        - listeningScore: double
+        - readingScore: double
+        - writingScore: double
+        - overallAccuracy: double
+        - updatedAt: LocalDateTime
+        ---
+        + recalculateOverallAccuracy(): void
+        + getSkillAverages(): Map<String, Double>
+    }
+
+    class UserStreak {
+        - id: Long <<1:1>>
+        - currentStreak: int
+        - longestStreak: int
+        - lastActivityDate: LocalDate
+        - weeklyGoal: int
+        - weeklyProgress: int
+        - totalActiveDays: int
+        ---
+        + incrementStreak(): void
+        + resetStreak(): void
+        + updateProgress(): void
+    }
+
+    class Course {
+        - id: Long
+        - title: String
+        - description: String
+        - level: UserLevel
+        - thumbnail: String
+        - instructor: String
+        - totalLessons: int
+        - enrolledCount: int
+        - rating: double
+        - createdAt: LocalDateTime
+        ---
+        + addChapter(chapter): void
+        + removeChapter(id): void
+        + updateRating(): void
+    }
+
+    class Chapter {
+        - id: Long
+        - title: String
+        - description: String
+        - orderIndex: int
+        - totalLessons: int
+        - createdAt: LocalDateTime
+        ---
+        + addLesson(lesson): void
+        + reorderLessons(): void
+    }
+
+    class Lesson {
+        - id: Long
+        - title: String
+        - description: String
+        - type: LessonType
+        - orderIndex: int
+        - videoUrl: String
+        - audioUrl: String
+        - pdfUrl: String
+        - content: String
+        - durationMinutes: int
+        - xpReward: int
+        - createdAt: LocalDateTime
+        ---
+        + getMediaUrl(): String
+        + calculateXp(): int
+    }
+
+    class LessonProgress {
+        - id: Long <<N:1 unique>>
+        - completed: boolean
+        - progressPercent: int
+        - xpEarned: int
+        - completedAt: LocalDateTime
+        - lastAccessedAt: LocalDateTime
+        - createdAt: LocalDateTime
+        ---
+        + markComplete(): void
+        + calculateProgress(): int
+    }
+
+    class CourseEnrollment {
+        - id: Long <<N:1 unique>>
+        - progressPercent: int
+        - lessonsCompleted: int
+        - enrolledAt: LocalDateTime
+        - completedAt: LocalDateTime
+        ---
+        + updateProgress(): void
+        + getCompletionPercentage(): double
+        + markCompleted(): void
+    }
+
+    class Certificate {
+        - id: Long
+        - certificateNumber: String <<unique>>
+        - userName: String
+        - courseName: String
+        - completionDate: LocalDateTime
+        - finalScore: double
+        - totalLessons: int
+        - lessonsCompleted: int
+        - pdfUrl: String
+        - isIssued: boolean
+        - issuedAt: LocalDateTime
+        - createdAt: LocalDateTime
+        ---
+        + generatePdf(): String
+        + verifyCertificate(): boolean
+        + shareCertificate(): String
+    }
+}
+
+' ==================== EXERCISE & ASSESSMENT ====================
+package "Exercise & Assessment" #FFF3E0 {
+
+    class Exercise {
+        - id: Long
+        - title: String
+        - description: String
+        - type: ExerciseType
+        - skill: SkillType
+        - level: UserLevel
+        - topic: String
+        - content: String
+        - answerKey: String
+        - explanation: String
+        - createdAt: LocalDateTime
+        ---
+        + validate(): boolean
+        + getSkillCategory(): String
+    }
+
+    class ExerciseResult {
+        - id: Long
+        - userAnswer: String
+        - score: Double
+        - feedback: String
+        - suggestions: String
+        - skillType: SkillType
+        - completedAt: LocalDateTime
+        ---
+        + isHighScore(): boolean
+        + getGrade(): String
+        + needsReview(): boolean
+    }
+
+    class PlacementTest {
+        - id: Long
+        - title: String
+        - description: String
+        - targetLevel: UserLevel
+        - totalQuestions: int
+        - timeLimitMinutes: int
+        - isActive: boolean
+        - createdAt: LocalDateTime
+        ---
+        + evaluateTest(answers): UserLevel
+        + calculateScore(answers): double
+    }
+
+    class PlacementQuestion {
+        - id: Long
+        - question: String
+        - skillType: SkillType
+        - level: UserLevel
+        - options: String <<JSON>>
+        - correctAnswer: String
+        - explanation: String
+        - passage: String
+        - audioUrl: String
+        - imageUrl: String
+        - orderIndex: int
+        - points: int
+        ---
+        + validateAnswer(answer): boolean
+        + getCorrectOption(): String
+    }
+}
+
+' ==================== VOCABULARY ====================
+package "Vocabulary" #F3E5F5 {
+
+    class VocabularyWord {
+        - id: Long
+        - word: String
+        - pronunciation: String
+        - translation: String
+        - definition: String
+        - example: String
+        - partOfSpeech: String
+        - level: UserLevel
+        - category: String
+        - audioUrl: String
+        - imageUrl: String
+        - isActive: boolean
+        - createdAt: LocalDateTime
+        ---
+        + getFullInfo(): VocabInfo
+        + playAudio(): void
+    }
+
+    class VocabularySet {
+        - id: Long
+        - name: String
+        - description: String
+        - thumbnail: String
+        - level: UserLevel
+        - category: String
+        - createdBy: String
+        - wordCount: int
+        - isPublic: boolean
+        - createdAt: LocalDateTime
+        ---
+        + addWord(word): void
+        + removeWord(id): void
+    }
+
+    class UserVocabularyProgress {
+        - id: Long <<N:1 unique>>
+        - masteryLevel: int <<0-5>>
+        - nextReviewDate: LocalDate
+        - lastReviewDate: LocalDate
+        - reviewCount: int
+        - correctCount: int
+        - incorrectCount: int
+        - easeFactor: double <<SM-2>>
+        - createdAt: LocalDateTime
+        ---
+        + updateProgress(correct: boolean): void
+        + getAccuracy(): double
+        + calculateNextReviewDate(): LocalDate
+        + isMastered(): boolean
+    }
+}
+
+' ==================== GAMIFICATION ====================
+package "Gamification" #FFEBEE {
+
+    class DailyChallenge {
+        - id: Long
+        - challengeDate: LocalDate
+        - type: ChallengeType
+        - title: String
+        - description: String
+        - content: String <<JSON>>
+        - level: UserLevel
+        - xpReward: int
+        - targetGoal: int
+        - isActive: boolean
+        - createdAt: LocalDateTime
+        ---
+        + getTodayChallenge(): DailyChallenge
+        + calculateReward(): int
+    }
+
+    class UserDailyProgress {
+        - id: Long <<N:1 unique>>
+        - currentProgress: int
+        - completed: boolean
+        - claimed: boolean
+        - score: Integer
+        - timeSpentSeconds: Integer
+        - xpEarned: Integer
+        - completedAt: LocalDateTime
+        ---
+        + updateProgress(amount): void
+        + completeChallenge(): void
+        + claimReward(): int
+    }
+
+    class Badge {
+        - id: Long
+        - name: String
+        - description: String
+        - icon: String
+        - color: String
+        - type: BadgeType
+        - xpReward: int
+        - isActive: boolean
+        ---
+        + getUnlockCriteria(): String
+        + awardBadge(user): void
+    }
+
+    class UserBadge {
+        - id: Long <<N:1 unique>>
+        - earnedAt: LocalDateTime
+        - note: String
+        ---
+        + getAchievementDate(): LocalDateTime
+    }
+}
+
+' ==================== COMMUNICATION ====================
+package "Communication" #E0F2F1 {
+
+    class ForumPost {
+        - id: Long
+        - title: String
+        - content: String
+        - category: ForumCategory
+        - level: UserLevel
+        - tags: String
+        - viewCount: int
+        - likeCount: int
+        - commentCount: int
+        - answerCount: int
+        - isPinned: boolean
+        - solved: boolean
+        - createdAt: LocalDateTime
+        - updatedAt: LocalDateTime
+        ---
+        + incrementView(): void
+        + toggleLike(): void
+        + markSolved(): void
+    }
+
+    class ForumComment {
+        - id: Long
+        - content: String
+        - likeCount: int
+        - isMentorReply: boolean
+        - acceptedAnswer: boolean
+        - createdAt: LocalDateTime
+        - updatedAt: LocalDateTime
+        ---
+        + toggleLike(): void
+        + markAsAccepted(): void
+        + reply(content): ForumComment
+    }
+
+    class ChatMessage {
+        - id: Long
+        - role: MessageRole
+        - content: String
+        - type: MessageType
+        - createdAt: LocalDateTime
+        ---
+        + isFromAI(): boolean
+        + isFromUser(): boolean
+        + getResponse(): String
+    }
+
+    class MentorAssignment {
+        - id: Long
+        - notes: String
+        - learningGoal: String
+        - assignedAt: LocalDateTime
+        - active: boolean
+        ---
+        + activate(): void
+        + deactivate(): void
+    }
+
+    class MentorMessage {
+        - id: Long
+        - content: String
+        - seen: boolean
+        - seenAt: LocalDateTime
+        - createdAt: LocalDateTime
+        ---
+        + markAsSeen(): void
+        + getReadStatus(): String
+    }
+}
+
+' ==================== NOTIFICATIONS ====================
+package "Notifications & Social" #FDEAA8 {
+
+    class Notification {
+        - id: Long
+        - type: NotificationType
+        - title: String
+        - message: String
+        - link: String
+        - read: boolean
+        - isEmailSent: boolean
+        - createdAt: LocalDateTime
+        ---
+        + markAsRead(): void
+        + sendEmail(): void
+        + getNotificationContent(): String
+    }
+
+    class SocialAccount {
+        - id: Long
+        - provider: String <<GOOGLE|FACEBOOK>>
+        - providerUserId: String
+        - accessToken: String
+        - refreshToken: String
+        - email: String
+        - fullName: String
+        - avatar: String
+        - linkedAt: LocalDateTime
+        ---
+        + validateToken(): boolean
+        + refreshAccessToken(): void
+    }
+}
+
+' ==================== SERVICES ====================
+package "Service Layer" #E1BEE7 {
+
+    class AuthService {
+        - userRepository: UserRepository
+        - jwtUtils: JwtUtils
+        - passwordEncoder: PasswordEncoder
+        ---
+        + register(dto): AuthResponse
+        + login(username, password): AuthResponse
+        + validateToken(token): boolean
+        + refreshToken(token): String
+        + changePassword(userId, old, new): void
+        + oauthLogin(provider, code): AuthResponse
+    }
+
+    class ExerciseService {
+        - exerciseRepository: ExerciseRepository
+        - exerciseResultRepository: ExerciseResultRepository
+        - groqService: GroqService
+        ---
+        + getExercises(filter): List<Exercise>
+        + submitExercise(userId, exerciseId, answer): ExerciseResult
+        + generateExercises(topic, level, skill, count): List<Exercise>
+        + scoreExercise(answer, exercise): ScoreResponse
+    }
+
+    class CourseService {
+        - courseRepository: CourseRepository
+        - enrollmentRepository: CourseEnrollmentRepository
+        - lessonProgressRepository: LessonProgressRepository
+        ---
+        + getCourses(level): List<Course>
+        + enrollCourse(userId, courseId): void
+        + getCourseProgress(userId, courseId): CourseProgress
+        + completeCourse(userId, courseId): Certificate
+        + getLearningPath(userId, level): LearningPath
+    }
+
+    class VocabularyService {
+        - vocabularyRepository: VocabularyWordRepository
+        - progressRepository: UserVocabularyProgressRepository
+        ---
+        + getWordsToReview(userId): List<VocabularyWord>
+        + reviewWord(userId, wordId, correct): void
+        + getNextReviewDate(progress): LocalDate
+        + getVocabularyCounts(userId): VocabStats
+    }
+
+    class GamificationService {
+        - userStatsRepository: UserStatsRepository
+        - userStreakRepository: UserStreakRepository
+        - badgeRepository: BadgeRepository
+        - dailyChallengeRepository: DailyChallengeRepository
+        ---
+        + addXp(userId, amount): void
+        + checkAndAwardBadges(userId): List<Badge>
+        + updateStreak(userId): void
+        + getDailyChallenge(date): DailyChallenge
+        + completeDailyChallenge(userId, challengeId): int
+        + getLeaderboard(limit): List<UserRank>
+    }
+
+    class AnalyticsService {
+        - userStatsRepository: UserStatsRepository
+        - resultRepository: ExerciseResultRepository
+        ---
+        + getUserStats(userId): UserAnalytics
+        + getSkillAnalysis(userId): SkillAnalysis
+        + getStudyTrends(userId): TrendData
+        + getPlatformStats(): PlatformAnalytics
+        + getEngagementMetrics(userId): EngagementMetrics
+    }
+
+    class GroqService {
+        - apiKey: String
+        - model: String
+        - restTemplate: RestTemplate
+        ---
+        + scoreExercise(prompt, answer): ScoreResponse
+        + generateExercises(prompt): List<Exercise>
+        + chat(message, context): ChatResponse
+        + provideLearningGuidance(userId): GuidanceResponse
+    }
+
+    class ForumService {
+        - postRepository: ForumPostRepository
+        - commentRepository: ForumCommentRepository
+        ---
+        + createPost(userId, dto): ForumPost
+        + addComment(userId, postId, dto): ForumComment
+        + getPostsByCategory(category, level): List<ForumPost>
+        + markAnswerAsAccepted(postId, commentId): void
+        + searchPosts(keyword): List<ForumPost>
+    }
+
+    class MentorService {
+        - assignmentRepository: MentorAssignmentRepository
+        - messageRepository: MentorMessageRepository
+        ---
+        + requestMentor(studentId): MentorAssignment
+        + assignMentor(studentId, mentorId): void
+        + sendMessage(senderId, receiverId, content): void
+        + getMentorStudents(mentorId): List<User>
+        + getAssignmentConversation(assignmentId): List<Message>
+    }
+
+    class NotificationService {
+        - notificationRepository: NotificationRepository
+        - emailService: EmailService
+        ---
+        + createNotification(userId, type, content): void
+        + markAsRead(notificationId): void
+        + sendEmailNotification(userId, content): void
+        + getUnreadCount(userId): int
+    }
+}
+
+' ==================== REPOSITORIES ====================
+package "Repository Layer" #B2DFDB {
+
+    interface UserRepository
+    interface CourseRepository
+    interface ExerciseRepository
+    interface ExerciseResultRepository
+    interface VocabularyWordRepository
+    interface UserVocabularyProgressRepository
+    interface UserStatsRepository
+    interface ForumPostRepository
+    interface NotificationRepository
+}
+
+' ==================== RELATIONSHIPS ====================
+
+User "1" -- "1" UserStats: has >
+User "1" -- "1" UserStreak: has >
+User "1" -- "*" ExerciseResult: submits
+User "1" -- "*" CourseEnrollment: enrolls in
+User "1" -- "*" LessonProgress: completes
+User "1" -- "*" UserVocabularyProgress: learns
+User "1" -- "*" UserBadge: earns
+User "1" -- "*" UserDailyProgress: completes
+User "1" -- "*" ChatMessage: sends
+User "1" -- "*" ForumPost: creates
+User "1" -- "*" ForumComment: adds
+User "1" -- "*" Notification: receives
+
+Course "1" -- "*" Chapter: contains
+Course "1" -- "*" CourseEnrollment: enrolls
+Course "1" -- "*" Certificate: issues
+
+Chapter "1" -- "*" Lesson: includes
+
+Lesson "1" -- "*" LessonProgress: has
+
+Exercise "1" -- "*" ExerciseResult: has
+
+PlacementTest "1" -- "*" PlacementQuestion: includes
+
+VocabularyWord "1" -- "*" UserVocabularyProgress: tracks
+
+VocabularySet "1" -- "*" VocabularyWord: contains
+
+DailyChallenge "1" -- "*" UserDailyProgress: has
+
+Badge "1" -- "*" UserBadge: has
+
+ForumPost "1" -- "*" ForumComment: has
+ForumPost "*" -- "1" User: created by
+ForumPost "*" -- "1" User: mentored by
+
+MentorAssignment "*" -- "1" User: assigns
+MentorAssignment "*" -- "1" User: for student
+MentorAssignment "1" -- "*" MentorMessage: has
+
+@enduml

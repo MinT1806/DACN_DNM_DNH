@@ -1,0 +1,253 @@
+@startuml UseCaseDiagram_ABCEnglish
+
+skinparam actorStyle awesome
+skinparam usecase {
+    BackgroundColor #E8F5E9
+    BorderColor #2E7D32
+}
+
+title Use Case Diagram - ABC English Learning System
+
+left to right direction
+
+' ==================== ACTORS ====================
+actor Guest as guest
+actor Student as student
+actor Teacher as teacher
+actor Mentor as mentor
+actor Administrator as admin
+
+' ==================== SYSTEM BOUNDARY ====================
+package "ABC English System" #F5F5F5 {
+
+    ' ==================== AUTHENTICATION MODULE ====================
+    package "Authentication" #E8F5E9 {
+        usecase "Register Account" as UC01
+        usecase "Login" as UC02
+        usecase "OAuth Login" as UC02b
+        usecase "Change Password" as UC03
+        usecase "Update Profile" as UC04
+        usecase "Complete Placement Test" as UC05
+    }
+
+    ' ==================== COURSE MODULE ====================
+    package "Courses" #FFF3E0 {
+        usecase "View Courses" as UC06
+        usecase "Browse by Level" as UC07
+        usecase "Enroll Course" as UC08
+        usecase "View Course Progress" as UC09
+        usecase "Complete Course" as UC10
+        usecase "Get Certificate" as UC11
+        usecase "Create Course" as UC12
+        usecase "Manage Course" as UC13
+    }
+
+    ' ==================== EXERCISE MODULE ====================
+    package "Exercises" #FFF3E0 {
+        usecase "View Exercises" as UC14
+        usecase "Filter by Skill" as UC15
+        usecase "Submit Exercise" as UC16
+        usecase "View Results" as UC17
+        usecase "Get Exercise Feedback" as UC18
+        usecase "Create Exercise" as UC19
+        usecase "Delete Exercise" as UC20
+    }
+
+    ' ==================== AI AGENT MODULE ====================
+    package "AI Agent" #E1F5FE {
+        usecase "Score Exercise" as UC21
+        usecase "Generate Exercises" as UC22
+        usecase "Chat with AI" as UC23
+        usecase "Get Learning Guidance" as UC24
+    }
+
+    ' ==================== VOCABULARY MODULE ====================
+    package "Vocabulary" #F3E5F5 {
+        usecase "View Vocabulary" as UC25
+        usecase "Learn Words" as UC26
+        usecase "Review Words" as UC27
+        usecase "Quiz Vocabulary" as UC28
+        usecase "Spaced Repetition" as UC29
+        usecase "Track Progress" as UC30
+    }
+
+    ' ==================== GAMIFICATION MODULE ====================
+    package "Gamification" #FFEBEE {
+        usecase "View Daily Challenge" as UC31
+        usecase "Complete Challenge" as UC32
+        usecase "Claim XP Reward" as UC33
+        usecase "View Badges" as UC34
+        usecase "View Leaderboard" as UC35
+        usecase "Track Streak" as UC36
+    }
+
+    ' ==================== FORUM MODULE ====================
+    package "Forum & Community" #E0F2F1 {
+        usecase "View Forum Posts" as UC37
+        usecase "Create Post" as UC38
+        usecase "Add Comment" as UC39
+        usecase "Mark Answer" as UC40
+        usecase "Like/Unlike" as UC41
+        usecase "Search Posts" as UC42
+    }
+
+    ' ==================== MENTOR MODULE ====================
+    package "Mentoring" #E0F2F1 {
+        usecase "Request Mentor" as UC43
+        usecase "Send Message" as UC44
+        usecase "View Mentor Students" as UC45
+        usecase "Assign Mentor" as UC46
+        usecase "Track Student" as UC47
+    }
+
+    ' ==================== ANALYTICS MODULE ====================
+    package "Analytics" #FFEBEE {
+        usecase "View My Stats" as UC48
+        usecase "Skill Analysis" as UC49
+        usecase "Study Trends" as UC50
+        usecase "View Platform Stats" as UC51
+        usecase "Export Report" as UC52
+    }
+
+    ' ==================== ADMIN MODULE ====================
+    package "Administration" #FCE4EC {
+        usecase "Manage Users" as UC53
+        usecase "Change User Role" as UC54
+        usecase "Manage Courses" as UC55
+        usecase "Manage Exercises" as UC56
+        usecase "System Analytics" as UC57
+        usecase "Send Notification" as UC58
+    }
+
+    ' ==================== NOTIFICATION MODULE ====================
+    package "Notifications" #FDEAA8 {
+        usecase "Receive Notification" as UC59
+        usecase "Mark as Read" as UC60
+        usecase "Email Notification" as UC61
+    }
+}
+
+' ==================== RELATIONSHIPS - GUEST ====================
+guest --> UC01
+guest --> UC02
+guest --> UC02b
+guest --> UC05
+
+' ==================== RELATIONSHIPS - STUDENT ====================
+student --> UC02
+student --> UC03
+student --> UC04
+
+student --> UC06
+student --> UC07
+student --> UC08
+student --> UC09
+student --> UC10
+student --> UC11
+
+student --> UC14
+student --> UC15
+student --> UC16
+student --> UC17
+student --> UC18
+
+student --> UC21
+student --> UC22
+student --> UC23
+student --> UC24
+
+student --> UC25
+student --> UC26
+student --> UC27
+student --> UC28
+student --> UC29
+student --> UC30
+
+student --> UC31
+student --> UC32
+student --> UC33
+student --> UC34
+student --> UC35
+student --> UC36
+
+student --> UC37
+student --> UC38
+student --> UC39
+student --> UC41
+student --> UC42
+
+student --> UC43
+student --> UC44
+
+student --> UC48
+student --> UC49
+student --> UC50
+
+student --> UC59
+student --> UC60
+student --> UC61
+
+' ==================== RELATIONSHIPS - TEACHER ====================
+teacher --> UC02
+teacher --> UC03
+teacher --> UC04
+
+teacher --> UC12
+teacher --> UC13
+
+teacher --> UC19
+teacher --> UC20
+
+teacher --> UC37
+teacher --> UC38
+teacher --> UC39
+teacher --> UC40
+teacher --> UC41
+teacher --> UC42
+
+teacher --> UC48
+teacher --> UC49
+
+teacher --> UC59
+
+' ==================== RELATIONSHIPS - MENTOR ====================
+mentor --> UC02
+mentor --> UC03
+
+mentor --> UC37
+mentor --> UC40
+mentor --> UC41
+
+mentor --> UC45
+mentor --> UC46
+mentor --> UC47
+
+mentor --> UC59
+
+' ==================== RELATIONSHIPS - ADMIN ====================
+admin --> UC02
+admin --> UC03
+
+admin --> UC53
+admin --> UC54
+admin --> UC55
+admin --> UC56
+admin --> UC57
+admin --> UC58
+
+admin --> UC59
+
+' ==================== EXTENDS RELATIONSHIPS ====================
+UC16 ..|> UC21 : extends (AI Scoring)
+UC22 ..|> UC14 : includes
+UC32 ..|> UC31 : extends
+UC11 ..|> UC10 : extends
+
+' ==================== INCLUDES RELATIONSHIPS ====================
+UC08 --|> UC04 : includes (profile data)
+UC09 --|> UC29 : includes
+UC17 --|> UC18 : includes
+UC30 --|> UC29 : includes
+UC45 --|> UC44 : includes
+
+@enduml

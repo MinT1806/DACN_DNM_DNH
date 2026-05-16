@@ -1,0 +1,661 @@
+@startuml RegisterAndPlacementTest
+title Activity Diagram - Đăng ký & Placement Test
+
+start
+
+:Guest truy cập trang đăng ký;
+
+:Điền thông tin:
+- Username (3-50 chars)
+- Email (valid)
+- Password (≥6 chars)
+- Full Name
+- Age Group (Child/Teen/Adult);
+
+:Gửi yêu cầu đăng ký;
+
+if (Dữ liệu hợp lệ?) then (Không)
+    :Hiển thị lỗi validation;
+    stop
+else (Có)
+endif
+
+if (Username/Email đã tồn tại?) then (Có)
+    :Trả lỗi "Already taken";
+    stop
+else (Chưa)
+endif
+
+:Mã hóa password (BCrypt);
+
+:Tạo User mới:
+- role = STUDENT
+- level = A1
+- totalPoints = 0;
+
+:Lưu vào database;
+
+:Đăng ký thành công;
+
+:Chuyển sang Placement Test;
+
+:Hiển thị 10 câu test
+(GRAMMAR, VOCABULARY, LISTENING,
+READING, SPEAKING, WRITING);
+
+:Student làm bài test;
+
+:Hệ thống tính toán điểm;
+
+if (Điểm >= C1 level?) then (Có)
+    :Cập nhật level = C1;
+else if (Điểm >= B2 level?) then (Có)
+    :Cập nhật level = B2;
+else if (Điểm >= B1 level?) then (Có)
+    :Cập nhật level = B1;
+else if (Điểm >= A2 level?) then (Có)
+    :Cập nhật level = A2;
+else
+    :Cập nhật level = A1;
+endif
+
+:Cập nhật placementTestCompleted = true;
+
+:Ghi lại UserStats;
+
+:Hiển thị kết quả level;
+
+:Gợi ý khóa học phù hợp;
+
+stop
+
+@enduml
+
+' ============================================================
+
+@startuml ExerciseSubmissionAndAIScoring
+title Activity Diagram - Làm bài tập & Chấm điểm AI
+
+start
+
+:Student xem Exercise;
+
+:Đọc nội dung bài tập:
+- Type: MULTIPLE_CHOICE, WRITING, SPEAKING, etc.
+- Skill: GRAMMAR, VOCABULARY, READING, etc.
+- Level: A1-C1;
+
+:Student làm bài tập;
+
+:Submit userAnswer;
+
+:Hệ thống nhận request;
+
+:Gọi Groq API với:
+- systemPrompt (rubric/criteria)
+- userAnswer
+- exerciseType
+- skill;
+
+:Chờ AI response;
+
+:AI xử lý & chấm điểm:
+- Grammar accuracy
+- Vocabulary usage
+- Coherence/Organization
+- Pronunciation (nếu SPEAKING)
+- Fluency;
+
+:AI trả về:
+- score (0-100)
+- feedback (chi tiết)
+- suggestions (cải thiện)
+- skillBreakdown (nếu có);
+
+:Lưu ExerciseResult:
+- userAnswer
+- score
+- feedback
+- suggestions
+- skillType
+- completedAt;
+
+:Cập nhật UserStats:
+- Skill scores
+- Overall accuracy
+- exercisesCompleted++;
+
+:Check điều kiện Badge:
+- Đạt 100 điểm?
+- Hoàn thành 10 bài?;
+
+if (Đạt điều kiện?) then (Có)
+    :Cấp Badge;
+    :Tạo Notification (BADGE_EARNED);
+else (Không)
+endif
+
+:Cập nhật study time;
+
+:Hiển thị kết quả + feedback;
+
+:Gợi ý bài tập tiếp theo;
+
+stop
+
+@enduml
+
+' ============================================================
+
+@startuml DailyChallengeFlow
+title Activity Diagram - Thử thách hàng ngày & Gamification
+
+start
+
+:Mỗi ngày hệ thống tạo DailyChallenge
+(type: VOCAB_QUIZ, LISTENING, 
+SPEAKING_SHADOWING, GRAMMAR_SPRINT,
+READING_SPEED, MIXED);
+
+:Student xem challenge hôm nay;
+
+:Đọc nội dung challenge:
+- Target goal (e.g., 5 items)
+- XP reward (e.g., 20 XP)
+- Time limit (nếu có);
+
+:Student làm challenge;
+
+:Hệ thống cập nhật UserDailyProgress:
+- currentProgress++
+- timeSpentSeconds;
+
+while (currentProgress >= targetGoal?) is (Không)
+    :Student tiếp tục làm;
+    :Cập nhật currentProgress;
+endwhile (Hoàn thành)
+
+:Challenge completed!;
+
+:Student nhấn "Claim XP";
+
+:Mark claimed = true;
+
+:Cộng XP:
+- UserStats.totalXp += xpReward;
+- Check level up? (mỗi 100 XP level lên);
+
+if (Level up?) then (Có)
+    :Cập nhật level;
+    :Cấp Badge (LEVEL_UP);
+    :Notification (LEVEL_UP);
+else (Không)
+endif
+
+:Cập nhật streak:
+- UserStreak.currentStreak++;
+- UserStreak.lastActivityDate = today;
+- UserStreak.totalActiveDays++;
+
+:Check streak milestones:
+- 7-day streak?
+- 14-day streak?
+- 30-day streak?;
+
+if (Đạt streak milestone?) then (Có)
+    :Cấp STREAK Badge;
+    :Notification (BADGE_EARNED);
+else (Không)
+endif
+
+:Ghi nhận vào UserStats;
+
+:Hiển thị reward;
+
+:Chuẩn bị challenge cho ngày mai;
+
+stop
+
+@enduml
+
+' ============================================================
+
+@startuml VocabularySpacedRepetition
+title Activity Diagram - Học từ vựng (Spaced Repetition)
+
+start
+
+:Student xem VocabularyWords;
+
+:Lọc theo level/category;
+
+:Chọn từ để học;
+
+:Xem thông tin từ:
+- Word, Pronunciation
+- Definition, Translation
+- Example, Audio, Image
+- Part of speech;
+
+:Làm quiz từ vựng;
+
+:Student trả lời;
+
+if (Trả lời đúng?) then (Có)
+    :Mark as CORRECT;
+    :Tăng easeFactor;
+    :nextReviewDate = today + interval
+    (dựa trên SM-2 algorithm);
+    :masteryLevel++;
+else (Sai)
+    :Mark as INCORRECT;
+    :Giảm easeFactor;
+    :nextReviewDate = today + 1 day;
+endif
+
+:Cập nhật UserVocabularyProgress:
+- reviewCount++
+- correctCount/incorrectCount
+- accuracy = correctCount/reviewCount
+- lastReviewDate = today
+- masteryLevel;
+
+:Lưu vào database;
+
+:Tính toán từ cần ôn:
+- if nextReviewDate <= today?;
+
+if (Có từ cần ôn?) then (Có)
+    :Hiển thị "Review Today"
+    (từ sắp quên);
+else (Không)
+    :Hiển thị "Học từ mới";
+endif
+
+:Cập nhật skill score (VOCABULARY)
+trong UserStats;
+
+:Check MASTERY badge:
+- 5 từ masteryLevel = 5?
+- 20 từ masteryLevel = 5?;
+
+if (Đạt điều kiện?) then (Có)
+    :Cấp MASTERY Badge;
+else (Không)
+endif
+
+:Hiển thị tiến trình;
+
+stop
+
+@enduml
+
+' ============================================================
+
+@startuml EnrollCourseAndLearn
+title Activity Diagram - Đăng ký & Học khóa học
+
+start
+
+:Student xem danh sách courses;
+
+:Lọc theo level;
+
+:Chọn course;
+
+:Xem chi tiết course:
+- Title, Description
+- Level, Instructor
+- Total lessons, Rating
+- Chapters;
+
+: Nhấn "Enroll";
+
+if (Đã đăng ký?) then (Có)
+    :Already enrolled;
+    stop
+else (Chưa)
+endif
+
+:Tạo CourseEnrollment:
+- status = ENROLLED
+- enrolledAt = now;
+
+:Tạo LessonProgress cho tất cả lessons:
+- completed = false
+- progressPercent = 0;
+
+:Successfully enrolled!;
+
+:Xem chapters & lessons;
+
+:Chọn lesson đầu tiên;
+
+:Xem lesson:
+- Type: VIDEO, AUDIO, READING, EXERCISE, QUIZ
+- Content, URL, Duration;
+
+:Học lesson:
+- Xem video
+- Nghe audio
+- Đọc bài
+- Làm bài tập
+- Làm quiz;
+
+:Ghi nhận thời gian học
+(totalStudyMinutes, weeklyStudyMinutes);
+
+:Student nhấn "Complete";
+
+:Cập nhật LessonProgress:
+- completed = true
+- progressPercent = 100
+- xpEarned = lesson.xpReward
+- completedAt = now;
+
+:Cập nhật UserStats:
+- lessonsCompleted++
+- totalXp += xpReward
+- totalStudyMinutes += duration;
+
+:Cập nhật CourseEnrollment:
+- lessonsCompleted++
+- progressPercent = lessonsCompleted/totalLessons * 100;
+
+if (progressPercent == 100%) then (Hoàn thành khóa học)
+    :Tạo Certificate:
+    - certificateNumber (unique)
+    - completionDate
+    - finalScore (avg of results)
+    - pdfUrl (generate);
+    
+    :Mark course as COMPLETED;
+    
+    :Cấp COURSE Badge;
+    
+    :Notification (COURSE_COMPLETED);
+    
+    :Cập nhật UserStats:
+    - coursesCompleted++;
+else (Chưa hoàn thành)
+    :Gợi ý lesson tiếp theo;
+endif
+
+:Hiển thị tiến trình;
+
+:Suggested next courses;
+
+stop
+
+@enduml
+
+' ============================================================
+
+@startuml ActivityDiagram_PlacementTest
+
+title Activity Diagram - Làm bài kiểm tra phân loại (UC03)
+
+start
+
+:Student request lấy đề kiểm tra;
+
+:Hệ thống trả về 10 câu hỏi
+(A1 → C1, mỗi level 2 câu);
+
+:Student làm bài kiểm tra;
+
+:Student submit kết quả
+(correctAnswers, totalQuestions, recommendedLevel);
+
+if (Có recommendedLevel hợp lệ?) then (Có)
+    :Sử dụng recommendedLevel;
+else (Không)
+    :Tính level theo tỷ lệ đúng;
+    note right
+        85% trở lên: C1
+        70%-84%: B2
+        55%-69%: B1
+        40%-54%: A2
+        Dưới 40%: A1
+    end note
+endif
+
+:Cập nhật user.level;
+:Đặt placementTestCompleted = true;
+:Lưu User vào DB;
+
+:Trả về AuthResponse với level mới;
+
+stop
+
+@enduml
+
+' ============================================================
+
+@startuml ActivityDiagram_AIScoring
+
+title Activity Diagram - Chấm điểm AI (UC13)
+
+start
+
+:Student submit bài làm
+(skillType, userText, question, correctAnswer);
+
+if (Groq API available?) then (Có)
+    :Gửi prompt với rubric cho Groq AI;
+    :Nhận JSON response từ AI;
+
+    if (AI response hợp lệ?) then (Có)
+        :Parse score, criteria, feedback, improvement;
+    else (Không)
+        :Fallback sang Rule-based;
+    endif
+else (Không)
+    :Sử dụng Rule-based scoring;
+endif
+
+partition "Rule-based Scoring" {
+    if (Skill Type?) then (WRITING)
+        :Tính Grammar(0-3) + Vocabulary(0-2)
+        + Coherence(0-2) + TaskResponse(0-3);
+    elseif (SPEAKING) then
+        :Tính Fluency(0-3) + Pronunciation(0-2)
+        + Grammar(0-2) + Vocabulary(0-3);
+    else (READING/LISTENING)
+        :So sánh đáp án → Accuracy(0-10);
+    endif
+}
+
+:Lưu ExerciseResult vào DB;
+:Cập nhật user.totalPoints += score × 10;
+
+:Trả về ScoringResponse;
+
+stop
+
+@enduml
+
+' ============================================================
+
+@startuml ActivityDiagram_ExerciseGeneration
+
+title Activity Diagram - Sinh bài tập AI (UC14)
+
+start
+
+:Student request sinh bài tập
+(topic, level, skill, count);
+
+if (Groq API available?) then (Có)
+    :Gửi prompt cho Groq AI
+    yêu cầu sinh câu hỏi;
+
+    :Nhận JSON array từ AI;
+
+    if (Parse thành công?) then (Có)
+        :Tạo danh sách QuestionItem từ AI;
+    else (Không)
+        :Fallback sang Rule-based;
+    endif
+else (Không)
+    :Sử dụng Rule-based generation;
+endif
+
+partition "Rule-based Generation" {
+    if (Skill = GRAMMAR/VOCABULARY?) then (Có)
+        :Lấy câu hỏi từ Question Pool;
+        :Bổ sung câu hỏi template nếu thiếu;
+    else (Không)
+        :Sinh câu hỏi template
+        theo skill (READING/WRITING/SPEAKING/LISTENING);
+    endif
+}
+
+:Trả về ExerciseGenerationResponse
+(topic, level, skill, questions);
+
+stop
+
+@enduml
+
+' ============================================================
+
+@startuml ActivityDiagram_ChatAI
+
+title Activity Diagram - Chat với AI Tutor (UC15)
+
+start
+
+:Student gửi tin nhắn;
+
+if (Groq API available?) then (Có)
+    :Gửi message cho Groq AI
+    (system prompt: English tutor);
+
+    :Nhận JSON response;
+
+    if (Parse thành công?) then (Có)
+        :Trả về message + examples + tip từ AI;
+    else (Không)
+        :Fallback sang Rule-based;
+    endif
+else (Không)
+    :Sử dụng Rule-based response;
+endif
+
+:Phân tích keywords trong message;
+
+if (Chứa "present simple"?) then (Có)
+    :Trả về bài giảng Present Simple;
+elseif (Chứa "past simple"?) then (Có)
+    :Trả về bài giảng Past Simple;
+elseif (Chứa "present perfect"?) then (Có)
+    :Trả về bài giảng Present Perfect;
+elseif (Chứa "vocabulary"?) then (Có)
+    :Trả về tips học từ vựng;
+elseif (Chứa "ielts"?) then (Có)
+    :Trả về hướng dẫn IELTS;
+elseif (Chứa "toeic"?) then (Có)
+    :Trả về hướng dẫn TOEIC;
+else (Khác)
+    :Trả về lời chào và hướng dẫn sử dụng;
+endif
+
+:Trả về ChatResponse (message, examples, tip);
+
+stop
+
+@enduml
+
+' ============================================================
+
+@startuml ActivityDiagram_LearningPath
+
+title Activity Diagram - Xem lộ trình học tập (UC18)
+
+start
+
+:Student request lộ trình học tập;
+
+:Lấy thông tin User (level, ageGroup);
+
+:Tính điểm TB từng kỹ năng
+(WRITING, SPEAKING, READING, LISTENING);
+
+:Xây dựng Milestones cho level hiện tại;
+note right
+    - 10 bài Grammar cơ bản
+    - Writing TB ≥ 6.0
+    - 5 bài Listening
+    - Speaking TB ≥ 6.0
+    - Bài kiểm tra level
+end note
+
+:Xây dựng Suggested Exercises
+(ưu tiên kỹ năng yếu nhất);
+
+:Xác định Next Level và Requirements;
+
+:Ước tính số tuần cần thiết;
+note right
+    A1: 8 tuần, A2: 10 tuần, B1: 12 tuần
+    B2: 16 tuần, C1: 20 tuần
+    Điều chỉnh theo điểm TB
+end note
+
+:Trả về LearningPath
+(milestones, suggestedExercises,
+nextLevel, estimatedWeeks);
+
+stop
+
+@enduml
+
+' ============================================================
+
+@startuml ActivityDiagram_AdminManagement
+
+title Activity Diagram - Quản trị hệ thống (Admin)
+
+start
+
+:Admin đăng nhập (role=ADMIN);
+
+fork
+    :Quản lý Users;
+    partition "User Management" {
+        :Xem danh sách Users;
+        if (Cần thao tác?) then (Đổi role)
+            :Cập nhật role (STUDENT/TEACHER/ADMIN);
+        elseif (Đổi level) then
+            :Cập nhật level (A1-C1);
+        elseif (Xóa) then
+            :Xóa user khỏi DB;
+        else (Không)
+        endif
+    }
+fork again
+    :Quản lý Courses;
+    partition "Course Management" {
+        :Xem DS khóa học;
+        if (Thao tác?) then (Tạo mới)
+            :Tạo course mới;
+        elseif (Xóa) then
+            :Xóa course;
+        else (Không)
+        endif
+    }
+fork again
+    :Xem thống kê;
+    partition "Statistics" {
+        :Xem platform stats
+        (totalUsers, totalCourses,
+        totalExercises, avgScore);
+        :Xem phân bố users
+        theo role và level;
+    }
+end fork
+
+stop
+
+@enduml
